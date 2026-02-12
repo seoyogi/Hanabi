@@ -2,103 +2,65 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>夜景花火3Dマップ</title>
+  <title>VR迷路</title>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
   <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/cannon.js"></script>
 </head>
 <body style="margin:0; overflow:hidden;">
-  <canvas id="renderCanvas" touch-action="none" style="width:100%; height:100vh;"></canvas>
+  <canvas id="renderCanvas"></canvas>
   <script>
     const canvas = document.getElementById("renderCanvas");
     const engine = new BABYLON.Engine(canvas, true);
 
-    const createScene = async () => {
+    const createScene = () => {
       const scene = new BABYLON.Scene(engine);
+      scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.CannonJSPlugin());
 
-      // 夜空スカイボックス
-      const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", {size:500}, scene);
-      const skyMat = new BABYLON.StandardMaterial("skyMat", scene);
-      skyMat.backFaceCulling = false;
-      skyMat.disableLighting = true;
-      skyMat.emissiveColor = new BABYLON.Color3(0,0,0);
-      skybox.material = skyMat;
+      // カメラ（VR用）
+      const camera = new BABYLON.WebXRCamera("xrCamera", scene);
+      camera.position = new BABYLON.Vector3(0, 1.6, 0);
 
-      // 星パーティクル
-      const stars = new BABYLON.ParticleSystem("stars", 1000, scene);
-      stars.particleTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/Flare.png", scene);
-      stars.minEmitBox = new BABYLON.Vector3(-250,50,-250);
-      stars.maxEmitBox = new BABYLON.Vector3(250,250,250);
-      stars.color1 = stars.color2 = new BABYLON.Color4(1,1,1,1);
-      stars.minSize = 0.1; stars.maxSize = 0.3;
-      stars.minLifeTime = stars.maxLifeTime = Number.MAX_SAFE_INTEGER;
-      stars.emitRate = 1000;
-      stars.start();
+      // 光源
+      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-      // カメラ
-      const camera = new BABYLON.ArcRotateCamera("Camera", Math.PI/2, Math.PI/4, 60, BABYLON.Vector3.Zero(), scene);
-      camera.attachControl(canvas, true);
+      // 地面
+      const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
+      ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, {mass:0, restitution:0.1}, scene);
 
-      // 簡易道路
-      const road = BABYLON.MeshBuilder.CreateGround("road", {width:80, height:6}, scene);
-      const roadMat = new BABYLON.StandardMaterial("roadMat", scene);
-      roadMat.diffuseColor = new BABYLON.Color3(0.1,0.1,0.1);
-      road.material = roadMat;
+      // 壁（迷路サンプル）
+      const wall1 = BABYLON.MeshBuilder.CreateBox("wall1", {width: 0.5, height:2, depth:5}, scene);
+      wall1.position = new BABYLON.Vector3(2,1,0);
+      wall1.physicsImpostor = new BABYLON.PhysicsImpostor(wall1, BABYLON.PhysicsImpostor.BoxImpostor, {mass:0, restitution:0.1}, scene);
 
-      // ビル群
-      for(let i=0;i<40;i++){
-        const box = BABYLON.MeshBuilder.CreateBox(`box${i}`, {height: Math.random()*10+5, width:2, depth:2}, scene);
-        box.position.x = Math.random()*70-35;
-        box.position.z = Math.random()*50-25;
-        box.position.y = box.scaling.y/2;
-        const mat = new BABYLON.StandardMaterial(`mat${i}`, scene);
-        mat.emissiveColor = new BABYLON.Color3(Math.random(),Math.random(),Math.random()).scale(0.5);
-        box.material = mat;
-      }
+      // コントローラー用
+      let gamepad;
+      window.addEventListener("gamepadconnected", (e) => { gamepad = e.gamepad; console.log("Gamepad connected", gamepad); });
 
-      // 花火音
-      const fireworkSound = new BABYLON.Sound("firework", "https://www.soundjay.com/misc/sounds/firework-01.mp3", scene);
+      scene.onBeforeRenderObservable.add(() => {
+        if(gamepad){
+          const gp = navigator.getGamepads()[gamepad.index];
+          if(gp){
+            // 左スティックで前後左右
+            const moveSpeed = 0.1;
+            const forward = new BABYLON.Vector3(0,0,1);
+            const right = new BABYLON.Vector3(1,0,0);
+            const direction = forward.scale(gp.axes[1]).add(right.scale(gp.axes[0]));
+            camera.position.addInPlace(direction.scale(moveSpeed));
+          }
+        }
+      });
 
-      // 花火作成関数
-      const createFirework = (pos) => {
-        fireworkSound.play();
-
-        const ps = new BABYLON.ParticleSystem("firework", 500, scene);
-        ps.particleTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/Flare.png", scene);
-        ps.emitter = pos;
-        ps.minEmitBox = ps.maxEmitBox = new BABYLON.Vector3(0,0,0);
-        ps.color1 = new BABYLON.Color4(Math.random(),Math.random(),Math.random(),1);
-        ps.color2 = new BABYLON.Color4(Math.random(),Math.random(),Math.random(),1);
-        ps.minSize = 0.2; ps.maxSize = 0.5;
-        ps.minLifeTime = 0.5; ps.maxLifeTime = 1.5;
-        ps.emitRate = 500;
-        ps.direction1 = new BABYLON.Vector3(-1,1,-1);
-        ps.direction2 = new BABYLON.Vector3(1,1,1);
-        ps.gravity = new BABYLON.Vector3(0,-9.81,0);
-        ps.manualEmitCount = 200;
-        ps.start();
-
-        setTimeout(() => { ps.dispose(); }, 1500);
-      }
-
-      // ランダム花火
-      setInterval(() => {
-        const x = Math.random()*60-30;
-        const z = Math.random()*30-15;
-        const y = 10 + Math.random()*10;
-        createFirework(new BABYLON.Vector3(x,y,z));
-      }, 800);
-
-      // AR/VR対応
-      await scene.createDefaultXRExperienceAsync({ optionalFeatures:true });
+      // VRボタン
+      const xr = scene.createDefaultXRExperienceAsync({floorMeshes:[ground]});
 
       return scene;
     }
 
-    createScene().then(scene => {
-      engine.runRenderLoop(() => scene.render());
-    });
+    const scene = createScene();
 
-    window.addEventListener("resize", () => engine.resize());
+    engine.runRenderLoop(() => { scene.render(); });
+    window.addEventListener("resize", () => { engine.resize(); });
   </script>
 </body>
 </html>
