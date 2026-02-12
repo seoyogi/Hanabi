@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>夜景花火3Dマップ</title>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+</head>
+<body style="margin:0; overflow:hidden;">
+  <canvas id="renderCanvas" touch-action="none" style="width:100%; height:100vh;"></canvas>
+  <script>
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
+
+    const createScene = () => {
+      const scene = new BABYLON.Scene(engine);
+
+      // カメラ（360°操作用）
+      const camera = new BABYLON.ArcRotateCamera("Camera",
+        Math.PI/2, Math.PI/4, 50, BABYLON.Vector3.Zero(), scene);
+      camera.attachControl(canvas, true);
+
+      // ライト（夜景向け）
+      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0,1,0), scene);
+      light.intensity = 0.5;
+
+      // 地面
+      const ground = BABYLON.MeshBuilder.CreateGround("ground", {width:100, height:100}, scene);
+
+      // ビル群（夜景っぽくライト付き）
+      for(let i=0;i<50;i++){
+        const box = BABYLON.MeshBuilder.CreateBox(`box${i}`, {height: Math.random()*10+5, width:2, depth:2}, scene);
+        box.position.x = Math.random()*80-40;
+        box.position.z = Math.random()*80-40;
+        box.position.y = box.scaling.y/2;
+
+        const mat = new BABYLON.StandardMaterial(`mat${i}`, scene);
+        mat.emissiveColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random()).scale(0.5);
+        box.material = mat;
+      }
+
+      // 花火パーティクル
+      const particleSystem = new BABYLON.ParticleSystem("particles", 2000, scene);
+      particleSystem.particleTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/Flare.png", scene);
+      particleSystem.emitter = new BABYLON.Vector3(0,10,0);
+      particleSystem.minEmitBox = new BABYLON.Vector3(-1,0,-1);
+      particleSystem.maxEmitBox = new BABYLON.Vector3(1,0,1);
+      particleSystem.color1 = new BABYLON.Color4(1,0,0,1);
+      particleSystem.color2 = new BABYLON.Color4(1,1,0,1);
+      particleSystem.minSize = 0.2;
+      particleSystem.maxSize = 0.5;
+      particleSystem.minLifeTime = 0.5;
+      particleSystem.maxLifeTime = 1.5;
+      particleSystem.emitRate = 1000;
+      particleSystem.gravity = new BABYLON.Vector3(0,-9.81,0);
+      particleSystem.direction1 = new BABYLON.Vector3(-1,1,-1);
+      particleSystem.direction2 = new BABYLON.Vector3(1,1,1);
+      particleSystem.start();
+
+      // AR/VR対応
+      const xr = scene.createDefaultXRExperienceAsync({
+        uiOptions: { sessionMode: 'immersive-ar' },
+        optionalFeatures: true
+      });
+
+      return scene;
+    }
+
+    const scene = createScene();
+
+    engine.runRenderLoop(() => {
+      scene.render();
+    });
+
+    window.addEventListener("resize", () => {
+      engine.resize();
+    });
+  </script>
+</body>
+</html>
