@@ -13,69 +13,92 @@
     const canvas = document.getElementById("renderCanvas");
     const engine = new BABYLON.Engine(canvas, true);
 
-    const createScene = () => {
+    const createScene = async () => {
       const scene = new BABYLON.Scene(engine);
 
-      // カメラ（360°操作用）
+      // 夜空スカイボックス
+      const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", {size:500}, scene);
+      const skyMat = new BABYLON.StandardMaterial("skyMat", scene);
+      skyMat.backFaceCulling = false;
+      skyMat.disableLighting = true;
+      skyMat.diffuseColor = new BABYLON.Color3(0,0,0);
+      skyMat.specularColor = new BABYLON.Color3(0,0,0);
+      skyMat.emissiveColor = new BABYLON.Color3(0,0,0);
+      skybox.material = skyMat;
+
+      // 星っぽいパーティクル
+      const starSystem = new BABYLON.ParticleSystem("stars", 1000, scene);
+      starSystem.particleTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/Flare.png", scene);
+      starSystem.minEmitBox = new BABYLON.Vector3(-250,50,-250);
+      starSystem.maxEmitBox = new BABYLON.Vector3(250,250,250);
+      starSystem.color1 = new BABYLON.Color4(1,1,1,1);
+      starSystem.color2 = new BABYLON.Color4(1,1,1,1);
+      starSystem.minSize = 0.1;
+      starSystem.maxSize = 0.3;
+      starSystem.minLifeTime = Number.MAX_SAFE_INTEGER;
+      starSystem.maxLifeTime = Number.MAX_SAFE_INTEGER;
+      starSystem.emitRate = 1000;
+      starSystem.start();
+
+      // カメラ
       const camera = new BABYLON.ArcRotateCamera("Camera",
         Math.PI/2, Math.PI/4, 50, BABYLON.Vector3.Zero(), scene);
       camera.attachControl(canvas, true);
 
-      // ライト（夜景向け）
-      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0,1,0), scene);
-      light.intensity = 0.5;
-
-      // 地面
-      const ground = BABYLON.MeshBuilder.CreateGround("ground", {width:100, height:100}, scene);
-
-      // ビル群（夜景っぽくライト付き）
+      // ビル群（夜景用）
       for(let i=0;i<50;i++){
         const box = BABYLON.MeshBuilder.CreateBox(`box${i}`, {height: Math.random()*10+5, width:2, depth:2}, scene);
         box.position.x = Math.random()*80-40;
         box.position.z = Math.random()*80-40;
         box.position.y = box.scaling.y/2;
-
         const mat = new BABYLON.StandardMaterial(`mat${i}`, scene);
         mat.emissiveColor = new BABYLON.Color3(Math.random(), Math.random(), Math.random()).scale(0.5);
         box.material = mat;
       }
 
-      // 花火パーティクル
-      const particleSystem = new BABYLON.ParticleSystem("particles", 2000, scene);
-      particleSystem.particleTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/Flare.png", scene);
-      particleSystem.emitter = new BABYLON.Vector3(0,10,0);
-      particleSystem.minEmitBox = new BABYLON.Vector3(-1,0,-1);
-      particleSystem.maxEmitBox = new BABYLON.Vector3(1,0,1);
-      particleSystem.color1 = new BABYLON.Color4(1,0,0,1);
-      particleSystem.color2 = new BABYLON.Color4(1,1,0,1);
-      particleSystem.minSize = 0.2;
-      particleSystem.maxSize = 0.5;
-      particleSystem.minLifeTime = 0.5;
-      particleSystem.maxLifeTime = 1.5;
-      particleSystem.emitRate = 1000;
-      particleSystem.gravity = new BABYLON.Vector3(0,-9.81,0);
-      particleSystem.direction1 = new BABYLON.Vector3(-1,1,-1);
-      particleSystem.direction2 = new BABYLON.Vector3(1,1,1);
-      particleSystem.start();
+      // 花火関数
+      const createFirework = (pos) => {
+        const ps = new BABYLON.ParticleSystem("firework", 500, scene);
+        ps.particleTexture = new BABYLON.Texture("https://www.babylonjs.com/assets/Flare.png", scene);
+        ps.emitter = pos;
+        ps.minEmitBox = new BABYLON.Vector3(0,0,0);
+        ps.maxEmitBox = new BABYLON.Vector3(0,0,0);
+        ps.color1 = new BABYLON.Color4(Math.random(),Math.random(),Math.random(),1);
+        ps.color2 = new BABYLON.Color4(Math.random(),Math.random(),Math.random(),1);
+        ps.minSize = 0.2;
+        ps.maxSize = 0.5;
+        ps.minLifeTime = 0.5;
+        ps.maxLifeTime = 1.5;
+        ps.emitRate = 200;
+        ps.direction1 = new BABYLON.Vector3(-1,1,-1);
+        ps.direction2 = new BABYLON.Vector3(1,1,1);
+        ps.gravity = new BABYLON.Vector3(0,-9.81,0);
+        ps.manualEmitCount = 200;
+        ps.start();
+        setTimeout(() => { ps.dispose(); }, 1500); // 花火消える
+      }
+
+      // ランダムで花火を上げる
+      setInterval(() => {
+        const x = Math.random()*50-25;
+        const z = Math.random()*50-25;
+        createFirework(new BABYLON.Vector3(x,10,z));
+      }, 1000);
 
       // AR/VR対応
-      const xr = scene.createDefaultXRExperienceAsync({
-        uiOptions: { sessionMode: 'immersive-ar' },
+      await scene.createDefaultXRExperienceAsync({
+        uiOptions: { sessionMode: 'immersive-vr' }, // VR
         optionalFeatures: true
       });
 
       return scene;
     }
 
-    const scene = createScene();
-
-    engine.runRenderLoop(() => {
-      scene.render();
+    createScene().then(scene => {
+      engine.runRenderLoop(() => scene.render());
     });
 
-    window.addEventListener("resize", () => {
-      engine.resize();
-    });
+    window.addEventListener("resize", () => engine.resize());
   </script>
 </body>
 </html>
